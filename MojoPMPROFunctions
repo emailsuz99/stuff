@@ -1,0 +1,149 @@
+<?php
+
+function vc_remove_wp_admin_bar_button() {
+    remove_action( 'admin_bar_menu', array( vc_frontend_editor(), 'adminBarEditLink' ), 1000 );//remove Edit with Visual Composer option from admin bar
+}
+add_action( 'vc_after_init', 'vc_remove_wp_admin_bar_button' );
+function vc_remove_frontend_links() {
+    vc_disable_frontend(); // this will disable frontend editor
+}
+
+add_action( 'vc_after_init', 'vc_remove_frontend_links' );vc_set_as_theme( $disable_updater = false );  //disable Hola update message}
+
+/* Add bcc for PMPro admin emails */
+function my_pmpro_email_headers_admin_emails($headers, $email)
+
+{		
+	//bcc emails already going to admin_email
+        if(strpos($email->template, "_admin") !== false)
+	{
+		//add bcc
+		$headers[] = "Bcc:" . "suzanne@absolutely-webs.com";		
+	}
+	return $headers;
+}
+add_filter("pmpro_email_headers", "my_pmpro_email_headers_admin_emails", 10, 2);
+
+/* PMPro Gift Levels */
+global $pmprogl_gift_levels;
+$pmprogl_gift_levels = array(
+    // Set level 5 as a "Gift 3-month" membership level to create a gift code for level 7 gift.
+    5 => array(                     // "Purchase Gift" level ID
+        'level_id' => 7,            // Membership Level ID of the gift membership level.
+        'initial_payment' => 0,     // The initial payment for the gift membership level.
+        'billing_amount' => 0,      // The recurring billing amount for the gift membership level.The recurring billing amount for the gift membership level.
+        'cycle_number' => 0,        // The number of billing cycles for the gift membership level.
+        'cycle_period' => '',       // The billing cycle period. Possible values are "Day", "Week", "Month", and "Year" (without the quotes).
+        'billing_limit' => 0,       // The billing cycle limit for the gift membership level.
+        'trial_amount' => 0,        // The trial amount for the gift membership level.
+        'trial_limit' => 0,         // The number of cycles the trial should last for the gift membership level.
+        'expiration_number' => 3,   // The number of "expiration_period"s before the gift membership level expires.
+        'expiration_period' => 'Month'   // The duration of the period used by "expiration_number". Possible values are "Day", "Week", "Month", and "Year" (without the quotes).
+    ),
+
+    // Also, set level 6 as a "Gift 6-month" membership level to create a gift code for level 8 gift.
+   6 => array(                     // "Purchase Gift" level ID
+        'level_id' => 8,            // Membership Level ID of the gift membership level.
+        'initial_payment' => 0,     // The initial payment for the gift membership level.
+        'billing_amount' => 0,      // The recurring billing amount for the gift membership level.The recurring billing amount for the gift membership level.
+        'cycle_number' => 0,        // The number of billing cycles for the gift membership level.
+        'cycle_period' => '',       // The billing cycle period. Possible values are "Day", "Week", "Month", and "Year" (without the quotes).
+        'billing_limit' => 0,       // The billing cycle limit for the gift membership level.
+        'trial_amount' => 0,        // The trial amount for the gift membership level.
+        'trial_limit' => 0,         // The number of cycles the trial should last for the gift membership level.
+        'expiration_number' => 6,   // The number of "expiration_period"s before the gift membership level expires.
+        'expiration_period' => 'Month'   // The duration of the period used by "expiration_number". Possible values are "Day", "Week", "Month", and "Year" (without the quotes).
+    )
+);
+
+// Make levels 7 and 8 require a discount code at checkout.
+$pmprogl_require_gift_code = array(7,8);
+
+/*Hide gift levels from Membership Levels page*/
+function my_pmpro_levels_array($levels) {
+    $hidden_levels = array(5,6,7,8);
+    foreach($levels as $key=>$level) {
+        if(in_array($level->id, $hidden_levels))
+            unset($levels[$key]);
+    }
+    return $levels; 
+}
+add_filter('pmpro_levels_array', 'my_pmpro_levels_array');
+
+/*fix MailChimp for Wordpress SSL issue */
+add_filter( 'http_request_args', function( $args, $url ) {
+	// only act on requests to api.mailchimp.com
+	if( strpos( $url, 'api.mailchimp.com' ) === false ) {
+		return $args;
+	}
+	$args['sslverify'] = false;
+	return $args;
+}, 10, 2 );
+/*Allow more than one testimonial widget */
+add_filter( 'widget_text', 'do_shortcode' );
+/*tell PMPro to email the WP admin user whenever the IPN URL is loaded */
+//define('PMPRO_IPN_DEBUG', true);
+define('PMPRO_IPN_DEBUG', 'suzanne@absolutely-webs.com');
+
+/*remove confirm password and username on checkout page */
+add_filter('pmpro_checkout_confirm_email', '__return_false');
+add_filter('pmpro_checkout_confirm_password', '__return_false');
+
+/*
+	Add a "How did you hear about us?" field Membership Checkout for new members only.
+	Display the field for admins-only in the profile and in the Members List CSV export.
+*/
+function my_pmpro_how_hear_fields() {
+	global $current_user;
+	if(class_exists( 'PMProRH_Field' ) && (!pmpro_hasMembershipLevel() || current_user_can( 'edit_users' ) ) ) {
+		
+		pmprorh_add_checkout_box( 'additional', 'Additional Information' );
+		
+		$fields = array();
+		
+		//how_hear field
+		$fields[] = new PMProRH_Field(
+			'how_hear', 
+			'select',
+			array(
+				'label'			=> 'How did you hear about us?',
+				'options'		=> array(
+					'select'	=> '- Select -',
+					'googlesearch'	=> 'Google Search',
+					'facebook'	=> 'Facebook',
+					'instagram'	=> 'Instagram',					
+					'savvymainline'	=> 'Savvy Main Line',
+					'mojofriend'	=> 'Mojo Friend',
+					'other'		=> 'Other'
+				),
+				'profile'		=> 'admins',
+				'memberslistcsv'	=> true,
+				'required'		=> false,
+			)
+		);
+		$fields[] = new PMProRH_Field(
+			'how_hear_referrer',
+			'text',
+			array(
+				'label'			=> 'Referred by',
+				'profile'		=> 'admins',
+				'memberslistcsv'	=> true,
+				'depends'		=> array(array('id' => 'how_hear', 'value' => 'mojofriend')) 
+			)
+		);
+		foreach($fields as $field)
+			pmprorh_add_registration_field( 'additional', $field );
+	}
+}
+add_action( 'init', 'my_pmpro_how_hear_fields' );
+/**
+ * Remove the replacement homepage from the Member HomePages Add On for Paid Memberships Pro.
+ *
+ * Add this code (L7-L12 only) to your PMPro Customizations Plugin - https://www.paidmembershipspro.com/create-a-plugin-for-pmpro-customizations/
+ */
+function remove_member_homepages_redirect(){
+  if ( current_user_can( 'manage_options' ) ) {
+    remove_action( 'template_redirect', 'pmpromh_template_redirect_homepage' );
+  }  
+}
+add_action( 'template_redirect', 'remove_member_homepages_redirect', 5 );
